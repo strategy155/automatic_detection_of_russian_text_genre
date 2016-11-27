@@ -1,2 +1,0 @@
-HOMEPAGE_URL = 'az.lib.ru'
-CLASS_THRESHOLD = 50
