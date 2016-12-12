@@ -34,7 +34,7 @@ except ImportError:
           print("running with ElementTree")
         except ImportError:
           print("Failed to import ElementTree from any known place")
-parser = etree.XMLParser(ns_clean = True, recover = True, encoding='cp1251')
+parser = etree.XMLParser(ns_clean = True, recover = True)
 
 
 def _get_soup(filename):
@@ -44,9 +44,12 @@ def _get_soup(filename):
 
 def _get_text(soup):
     text = ''
-    print(etree.tostring(soup).decode())
-    print(soup)
-    print(soup.findall('.//p'))
+    nsmap = soup.getroot().nsmap
+    tag = etree.QName(nsmap[None],'p')
+    print(tag)
+    for elem in soup.iter():
+        if elem.tag == tag:
+            text += str(elem.text)
     all_lines = list(filter(None,text.split('\n')))
     print(all_lines)
     return all_lines
@@ -104,12 +107,12 @@ def _get_lines(filename):
     return all_lines
 
 
-def calibration_bag(filename, bag_of_words):
+def calibration_bag(filename, hehe):
     soup = _get_soup(filename)
     all_lines = _get_text(soup)
     all_words = _get_all_words(all_lines)
-    bag_of_words.fit(all_words)
-    return bag_of_words
+    return hehe.fit_transform(all_words)
+
 
 def _array_of_features(filename, bag_of_words):
     features_count = {}
@@ -130,13 +133,13 @@ def _array_of_features(filename, bag_of_words):
 
 
 def get_features_from_all_texts():
-    class_names = []
-    counter = 0
-    genre_dict = {}
-    num = 0
-    for root, dirs, filenames in os.walk('D:\LibRu\_Lib.rus.ec - Официальная\lib.rus.ec'):
-        for filename in filenames:
-            num+=1
+    # class_names = []
+    # counter = 0
+    # genre_dict = {}
+    # num = 0
+    # for root, dirs, filenames in os.walk('D:\LibRu\_Lib.rus.ec - Официальная\lib.rus.ec'):
+    #     for filename in filenames:
+    #         num+=1
     # with open('genre_list_2.json','w') as file:
     #     for root, dirs, filenames in os.walk('D:\LibRu\_Lib.rus.ec - Официальная\lib.rus.ec'):
     #         for filename in filenames:
@@ -152,21 +155,22 @@ def get_features_from_all_texts():
     #                 genre_dict[elem_true_name] =[os.path.join(root, filename)]
     #             print(num, counter)
     #     file.write(json.dumps(genre_dict, indent=4))
-    features = dict()
     bag_of_words = TfidfVectorizer(input='content', analyzer='word')
-    for root, dirs, filenames in os.walk('D:\LibRu\_Lib.rus.ec - Официальная\lib.rus.ec'):
-        print(root)
-        print(num)
-        for filename in filenames:
-            counter+=1
-            print(filename)
-            bag_of_words = calibration_bag(os.path.join(root, filename), bag_of_words)
-            print(counter)
-    print(bag_of_words.vocabulary_)
-    with open('bag_dic', 'w') as dict_file:
-        dict_file.write(json.dumps(bag_of_words.vocabulary_))
-    with open('bag_vec.pk', 'wb') as vec_file:
-        vec_file.write(pickle.dumps(bag_of_words))
+    llol = CountVectorizer(input='content', analyzer='word')
+    # for root, dirs, filenames in os.walk('D:\LibRu\_Lib.rus.ec - Официальная\lib.rus.ec'):
+    #     print(root)
+    #     print(num)
+    #     for filename in filenames:
+    #         counter+=1
+    #         print(filename)
+    #         bag_of_words = calibration_bag(os.path.join(root, filename), bag_of_words)
+    #         print(counter)
+    res = calibration_bag('sample.fb2', bag_of_words)
+    res2 = calibration_bag('sample.fb2', llol)
+    print(res)
+    print(llol.get_feature_names())
+    with open('bag_vec.pk', 'rb') as vec_file:
+        bag_of_words = pickle.loads(vec_file.read())
     # print('init')
     # for elem in genre_filename.keys():
     #     counter+=1
