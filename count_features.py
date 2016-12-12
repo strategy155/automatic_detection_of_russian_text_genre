@@ -56,12 +56,55 @@ def _get_text(soup):
 
 
 def _get_genre(soup):
-    elem = soup.find('genre')
-    try:
-        if elem['match']:
-            return 'match_genre'
-    except (KeyError):
-        return elem
+    genres = {}
+    nsmap = soup.getroot().nsmap
+    tag = etree.QName(nsmap[None],'genre')
+    for elem in soup.iter():
+        if elem.tag == tag:
+            genre_code = str(elem.text)
+            if genre_code.startswith('det') or genre_code == 'thriller':
+                genre_code = 'det'
+            elif genre_code.startswith('sf'):
+                genre_code = 'sf'
+            elif genre_code.startswith('prose') or genre_code.startswith('proce') or genre_code.startswith('short'):
+                genre_code = 'prose'
+            elif genre_code.startswith('love') or genre_code.startswith('romance'):
+                genre_code = 'love'
+            elif genre_code.startswith('adv'):
+                genre_code = 'adv'
+            elif genre_code == 'dramaturgy':
+                genre_code = 'poetry'
+            elif genre_code.startswith('antique'):
+                genre_code = 'ant'
+            elif genre_code.startswith('sci'):
+                genre_code = 'sci'
+            elif genre_code.startswith('comp'):
+                genre_code = 'comp'
+            elif genre_code.startswith('ref'):
+                genre_code = 'ref'
+            elif genre_code.startswith('nonf') or genre_code == 'design':
+                genre_code = 'nonf'
+            elif genre_code.startswith('religion'):
+                genre_code = 'rel'
+            elif genre_code.startswith('humor'):
+                genre_code = 'hum'
+            elif genre_code.startswith('home'):
+                genre_code = 'home'
+            elif genre_code.startswith('child'):
+                genre_code = 'child'
+            else:
+                genre_code = 'other'
+            try:
+                genres[genre_code]+=1
+            except KeyError:
+                genres[genre_code] = 1
+    c = 0
+    c_k = ''
+    for key in genres.keys():
+        if genres[key]> c:
+            c = genres[key]
+            c_k = key
+    return c_k
 
 
 def _count_all_words(all_lines):
@@ -78,7 +121,7 @@ def _get_all_words(all_lines):
     for line in all_lines:
         only_letters = re.sub('[^а-яА-яёЁ]', ' ', line)
         words = only_letters.lower().split()
-        all_words+= words
+        all_words += words
     return all_words
 
 
@@ -123,9 +166,7 @@ def _array_of_features(filename, bag_of_words):
     capital_count = _count_all_capitals(all_lines)
     words_count = _count_all_words(all_lines)
     all_words = _get_all_words(all_lines)
-    bag_of_words.fit(all_words)
-    print(bag_of_words)
-    print(bag_of_words.vocabulary_)
+    bag_of_words.transform(all_words)
     features_count['character'] = signs_count
     features_count['character']['capitals'] = capital_count
     features_count['words-count'] = words_count
@@ -145,18 +186,13 @@ def get_features_from_all_texts():
     #         for filename in filenames:
     #             counter+=1
     #             soup = _get_soup(os.path.join(root,filename))
-    #             try:
-    #                 elem_true_name = re.sub('<[^>]*>', '', _get_genre(soup).text)
-    #             except AttributeError:
-    #                 elem_true_name = 'no_genre'
-    #             try:
-    #                 genre_dict[elem_true_name].append(os.path.join(root,filename))
-    #             except KeyError:
-    #                 genre_dict[elem_true_name] =[os.path.join(root, filename)]
+    #             for genre in genres:
+    #                 genre_dict[genre].append(os.path.join(root,filename))
     #             print(num, counter)
     #     file.write(json.dumps(genre_dict, indent=4))
+    soup = _get_soup('sample.fb2')
+    print(_get_genre(soup))
     bag_of_words = TfidfVectorizer(input='content', analyzer='word')
-    llol = CountVectorizer(input='content', analyzer='word')
     # for root, dirs, filenames in os.walk('D:\LibRu\_Lib.rus.ec - Официальная\lib.rus.ec'):
     #     print(root)
     #     print(num)
@@ -165,12 +201,8 @@ def get_features_from_all_texts():
     #         print(filename)
     #         bag_of_words = calibration_bag(os.path.join(root, filename), bag_of_words)
     #         print(counter)
-    res = calibration_bag('sample.fb2', bag_of_words)
-    res2 = calibration_bag('sample.fb2', llol)
-    print(res)
-    print(llol.get_feature_names())
-    with open('bag_vec.pk', 'rb') as vec_file:
-        bag_of_words = pickle.loads(vec_file.read())
+    # with open('bag_vec.pk', 'wb') as vec_file:
+    #     vec_file.write(pickle.dumps(bag_of_words))
     # print('init')
     # for elem in genre_filename.keys():
     #     counter+=1
