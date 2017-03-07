@@ -4,9 +4,10 @@ from sklearn.linear_model import LogisticRegressionCV
 from sklearn.naive_bayes import  GaussianNB,MultinomialNB,BernoulliNB
 from sklearn.metrics import classification_report
 import collections
+import random
 
 
-CORPUS_PATH = 'D:\\usr\\gwm\\materials\\c_w\\lib.rus.ec'
+CORPUS_PATH = 'D:\\usr\\gwm\\c_w\\lib.rus.ec'
 ALL_CLASSES = ['sf','det','prose','love','adv','child','antique','sci','comp','ref','nonf','religi','humor','home']
 
 def _choose_filenames(max_number = 1000):
@@ -18,13 +19,19 @@ def _choose_filenames(max_number = 1000):
     c = 0
     for key in data.keys():
         if len(data[key]) > 1000:
-            for i in range(max_number):
-                if i < 9*max_number/10:
-                    X_train_filenames.append(data[key][i])
-                    y_train.append(key)
-                else:
-                    X_test_filenames.append(data[key][i])
-                    y_test.append(key)
+            rnd_list = random.sample(range(len(data[key])), max_number)
+            for i in range(int(9*max_number/10)):
+                X_train_filenames.append(data[key][rnd_list[i]])
+                y_train.append(key)
+            for i in range(int(9*max_number/10), max_number):
+                X_test_filenames.append(data[key][rnd_list[i]])
+                y_test.append(key)
+    new_cont = list(zip(X_train_filenames,y_train))
+    random.shuffle(new_cont)
+    X_train_filenames[:], y_train[:] = zip(*new_cont)
+    new_cont = list(zip(X_test_filenames,y_test))
+    random.shuffle(new_cont)
+    X_test_filenames[:], y_test[:] = zip(*new_cont)
     prediction_data = collections.namedtuple('Dataset',['X_train','y_train','X_test','y_test'])
     genre_data = prediction_data(X_train=X_train_filenames,y_train=y_train,X_test=X_test_filenames,y_test=y_test)
     return genre_data
@@ -54,8 +61,8 @@ def _get_bag_of_word(filenames):
 
 def main():
     all_data = _choose_filenames()
-#    naive_bayes(all_data)
-    log_reg(all_data)
+    naive_bayes(all_data)
+  #  log_reg(all_data)
 
 
 def log_reg(all_data):
