@@ -12,41 +12,63 @@ from keras.layers import Dense,Activation
 import numpy
 import scipy.sparse
 
+
 CORPUS_PATH = 'D:\\usr\\gwm\\c_w\\lib.rus.ec'
 ALL_CLASSES = ['sf','det','prose','love','adv','child','antique','sci','comp','ref','nonf','religi','humor','home']
+MAX_NUMBER = 100
 
-def _choose_filenames(max_number = 20):
-    data = joblib.load('new_genre_list')
-    X_train_filenames = []
-    X_test_filenames = []
-    y_train = []
-    y_test = []
-    c = 0
-    for key in data.keys():
-        if len(data[key]) > 1000:
-            rnd_list = random.sample(range(len(data[key])), max_number)
-            for i in range(int(9*max_number/10)):
-                X_train_filenames.append(data[key][rnd_list[i]])
-                y_train.append(key)
-            for i in range(int(9*max_number/10), max_number):
-                X_test_filenames.append(data[key][rnd_list[i]])
-                y_test.append(key)
-    X_train_filenames, y_train = _shuffle_samples(X_train_filenames,y_train)
-    X_test_filenames, y_test = _shuffle_samples(X_test_filenames, y_test)
+
+def _init_named_tuple():
     prediction_data = collections.namedtuple('Dataset',['X_train','y_train','X_test','y_test'])
-    genre_data = prediction_data(X_train=X_train_filenames,y_train=y_train,X_test=X_test_filenames,y_test=y_test)
+    genre_data = prediction_data
     return genre_data
 
 
-def norm_names(y):
+def _choose_filenames(train_amount = MAX_NUMBER, test_amount = int(MAX_NUMBER/10)):
+    _genre_to_filenames = joblib.load('new_genre_list')
+    _samples_tuple = _init_named_tuple()
+    _all_amount = train_amount + test_amount
+    for key in _genre_to_filenames.keys():
+        _file_amount = len(_genre_to_filenames[key])
+        if _file_amount >= _all_amount:
+            _range_gen = range(_file_amount)
+            _random_indices = random.sample(_range_gen, train_amount+test_amount)
+            _filenames = _genre_to_filenames[key]
+            try :
+                X_train,y_train =_fill_filenames_for_genre(train_amount, key, _filenames, _random_indices)
+                X_test, y_test = _fill_filenames_for_genre(test_amount, key, _filenames, _random_indices, train_amount)
+                _samples_tuple.X_train+= X_train
+                _samples_tuple.y_train +=y_train
+                _samples_tuple.X_test += X_test
+                _samples_tuple.y_test += y_test
+            except TypeError:
+                _samples_tuple.X_train, _samples_tuple.y_train = _fill_filenames_for_genre(train_amount,key, _filenames, _random_indices)
+                _samples_tuple.X_test, _samples_tuple.y_test = _fill_filenames_for_genre(test_amount, key, _filenames, _random_indices, train_amount)
+    _shuffle_samples(_samples_tuple.X_train,_samples_tuple.y_train)
+    _shuffle_samples(_samples_tuple.X_test, _samples_tuple.y_test)
+    return _samples_tuple
+
+
+def _fill_filenames_for_genre(count, key, filenames, indices, start_number=0):
+    X = []
+    y = []
+    for i in range(start_number,start_number + count):
+        filename = filenames[indices[i]]
+        X.append(filename)
+        y.append(key)
+    return X, y
+
+
+
+def norm_names(answers):
     i=0
-    new_dic={}
+    _new_dic={}
     y_new = []
     for elem in ALL_CLASSES:
-        new_dic[elem] = i
+        _new_dic[elem] = i
         i+=1
-    for elem in y:
-        y_new.append(new_dic[elem])
+    for elem in answers:
+        y_new.append(_new_dic[elem])
     return y_new
 
 
@@ -54,7 +76,7 @@ def _shuffle_samples(X,y):
     meta = list(zip(X,y))
     random.shuffle(meta)
     X[:], y[:] = zip(*meta)
-    return X, y
+    return None
 
 def _gen_docs(filenames):
     c = 0
@@ -88,7 +110,6 @@ def _gen_bag_of_word(X,y):
     while True:
         rng_state = numpy.random.get_state()
         index = numpy.arange(numpy.shape(X)[0])
-        print(index)
         numpy.random.shuffle(index)
         numpy.random.set_state(rng_state)
         numpy.random.shuffle(y)
@@ -110,11 +131,12 @@ def keras(all_data):
     X_test = _make_array(_get_bag_of_word(all_data.X_test))
     y_train = np_utils.to_categorical(norm_names(all_data.y_train))
     y_test = np_utils.to_categorical(norm_names(all_data.y_test))
-    model.add(Dense(32,input_dim=X_test.shape[1]))
-    model.add(Activation('sigmoid'))
+    print(y_train)
+    print(X_train)
+    model.add(Dense(32,input_dim=X_test.shape[1],activation='sigmoid'))
     model.add(Dense(14,activation='sigmoid'))
     model.compile(optimizer='adam',loss='categorical_crossentropy')
-    model.fit_generator(_gen_bag_of_word(X_train,y_train),samples_per_epoch=252,verbose=2,nb_epoch=20)
+    model.fit_generator(_gen_bag_of_word(X_train,y_train),samples_per_epoch=140,verbose=2,nb_epoch=20)
     y_pred = model.evaluate(X_test,y_test,batch_size=32)
     y_what = model.predict_classes(X_test)
     print(y_pred,y_test,y_train,y_what)
