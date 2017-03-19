@@ -4,50 +4,52 @@ from sklearn.linear_model import LogisticRegressionCV
 from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import  GaussianNB,MultinomialNB,BernoulliNB
 from sklearn.metrics import classification_report
+from sklearn.feature_selection import SelectKBest
 import collections
 import random
 from keras.utils import np_utils
 from keras.models import Sequential
-from keras.layers import Dense,Activation
+from keras.layers import Dense, Dropout
 import numpy
-import scipy.sparse
+import json
+from sklearn.model_selection import StratifiedKFold
 
 
 CORPUS_PATH = 'D:\\usr\\gwm\\c_w\\lib.rus.ec'
 ALL_CLASSES = ['sf','det','prose','love','adv','child','antique','sci','comp','ref','nonf','religi','humor','home']
-MAX_NUMBER = 100
+MAX_NUMBER = 1000
+PREDICTION_DATA ={'X_train':[], 'y_train':[], 'X_test':[], 'y_test':[]}
 
 
-def _init_named_tuple():
-    prediction_data = collections.namedtuple('Dataset',['X_train','y_train','X_test','y_test'])
-    genre_data = prediction_data
-    return genre_data
+
+
+
 
 
 def _choose_filenames(train_amount = MAX_NUMBER, test_amount = int(MAX_NUMBER/10)):
     _genre_to_filenames = joblib.load('new_genre_list')
-    _samples_tuple = _init_named_tuple()
     _all_amount = train_amount + test_amount
+    samples_dict = PREDICTION_DATA
     for key in _genre_to_filenames.keys():
         _file_amount = len(_genre_to_filenames[key])
         if _file_amount >= _all_amount:
             _range_gen = range(_file_amount)
             _random_indices = random.sample(_range_gen, train_amount+test_amount)
             _filenames = _genre_to_filenames[key]
-            try :
-                X_train,y_train =_fill_filenames_for_genre(train_amount, key, _filenames, _random_indices)
-                X_test, y_test = _fill_filenames_for_genre(test_amount, key, _filenames, _random_indices, train_amount)
-                _samples_tuple.X_train+= X_train
-                _samples_tuple.y_train +=y_train
-                _samples_tuple.X_test += X_test
-                _samples_tuple.y_test += y_test
-            except TypeError:
-                _samples_tuple.X_train, _samples_tuple.y_train = _fill_filenames_for_genre(train_amount,key, _filenames, _random_indices)
-                _samples_tuple.X_test, _samples_tuple.y_test = _fill_filenames_for_genre(test_amount, key, _filenames, _random_indices, train_amount)
-    _shuffle_samples(_samples_tuple.X_train,_samples_tuple.y_train)
-    _shuffle_samples(_samples_tuple.X_test, _samples_tuple.y_test)
-    return _samples_tuple
+            _fill_sample(train_amount,test_amount,key,_filenames,_random_indices,samples_dict)
+    _shuffle_samples(samples_dict['X_train'],samples_dict['y_train'])
+    _shuffle_samples(samples_dict['X_test'], samples_dict['y_test'])
+    return samples_dict
 
+
+def _fill_sample(train_amount, test_amount, key, filenames, random_indices, samples_dict):
+    X_train, y_train = _fill_filenames_for_genre(train_amount, key, filenames, random_indices)
+    X_test, y_test = _fill_filenames_for_genre(test_amount, key, filenames, random_indices, train_amount)
+    samples_dict['X_train'] += X_train
+    samples_dict['y_train'] += y_train
+    samples_dict['X_test'] += X_test
+    samples_dict['y_test'] += y_test
+    return None
 
 def _fill_filenames_for_genre(count, key, filenames, indices, start_number=0):
     X = []
@@ -105,7 +107,7 @@ def _make_array(X):
     return X_cool
 
 
-def _gen_bag_of_word(X,y):
+def _gen_bag_of_word(X,y,batch_size = 500):
     print(y.shape)
     while True:
         rng_state = numpy.random.get_state()
@@ -113,12 +115,24 @@ def _gen_bag_of_word(X,y):
         numpy.random.shuffle(index)
         numpy.random.set_state(rng_state)
         numpy.random.shuffle(y)
+        new_X = []
+        new_y = []
+        i = 0
         for idx,elem in zip(y,X[index, :]):
             idx = numpy.array(idx)[numpy.newaxis]
-            yield (elem.toarray(), idx)
+            new_X.append(elem.toarray())
+            new_y.append(idx)
+            i += 1
+            if i == batch_size:
+                i=0
+                yield (numpy.vstack(new_X), numpy.vstack(new_y))
+                new_X = []
+                new_y = []
+
 
 def main():
-    all_data = _choose_filenames()
+    with open('all_samples','r') as f:
+        all_data =json.loads(f.read())
     #  naive_bayes(all_data)
     # log_reg(all_data)
     # mlp_clas(all_data)
@@ -127,27 +141,23 @@ def main():
 
 def keras(all_data):
     model = Sequential()
-    X_train = _get_bag_of_word(all_data.X_train)
-    X_test = _make_array(_get_bag_of_word(all_data.X_test))
-    y_train = np_utils.to_categorical(norm_names(all_data.y_train))
-    y_test = np_utils.to_categorical(norm_names(all_data.y_test))
-    print(y_train)
-    print(X_train)
-    model.add(Dense(32,input_dim=X_test.shape[1],activation='sigmoid'))
-    model.add(Dense(14,activation='sigmoid'))
-    model.compile(optimizer='adam',loss='categorical_crossentropy')
-    model.fit_generator(_gen_bag_of_word(X_train,y_train),samples_per_epoch=140,verbose=2,nb_epoch=20)
+    X_train = joblib.load('X_train')
+    X_test = joblib.load('X_test')
+    y_train = np_utils.to_categorical(norm_names(all_data['y_train']))
+    y_test = np_utils.to_categorical(norm_names(all_data['y_test']))
+    # slctr = SelectKBest(k=100)
+    # slctr.fit(X_train,all_data['y_train'])
+    # X_train = slctr.transform(X_train)
+    # X_test = slctr.transform(X_test)
+    model.add(Dense(64 , input_dim=X_test.shape[1], activation='softmax'))
+    model.add(Dense(14, activation='softmax'))
+    model.compile(optimizer='adam', loss='categorical_crossentropy')
+    model.fit_generator(_gen_bag_of_word(X_train,y_train),samples_per_epoch=14000,verbose=2,nb_epoch=200)
     y_pred = model.evaluate(X_test,y_test,batch_size=32)
     y_what = model.predict_classes(X_test)
     print(y_pred,y_test,y_train,y_what)
-    print(classification_report(norm_names(all_data.y_test),y_what))
+    print(classification_report(norm_names(all_data['y_test']),y_what))
 
-def chunks(array):
-    for i in range(0,array.shape[1], 1000):
-        try:
-            yield (array[:, i:i+1000].toarray())
-        except IndexError:
-            continue
 
 def mlp_clas(all_data):
     model = MLPClassifier(verbose=100000, activation='logistic', max_iter=300)
