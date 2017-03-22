@@ -134,9 +134,9 @@ def main():
     with open('all_samples','r') as f:
         all_data =json.loads(f.read())
     #  naive_bayes(all_data)
-    # log_reg(all_data)
+    log_reg(all_data)
     # mlp_clas(all_data)
-    keras(all_data)
+    # keras(all_data)
 
 
 def keras(all_data):
@@ -160,17 +160,23 @@ def keras(all_data):
 
 
 def mlp_clas(all_data):
+    X_train = joblib.load('X_train')
+    X_test = joblib.load('X_test')
+
     model = MLPClassifier(verbose=100000, activation='logistic', max_iter=300)
-    model.fit(_get_bag_of_word(all_data.X_train), all_data.y_train)
-    y_pred = model.predict(_get_bag_of_word(all_data.X_test))
-    print(classification_report(all_data.y_test, y_pred))
+    model.fit(X_train, all_data['y_train'])
+    y_pred = model.predict(X_test)
+    print(classification_report(all_data['y_test'], y_pred))
 
 
 def log_reg(all_data):
-    model = LogisticRegressionCV(verbose=1000, n_jobs=1, max_iter=10000)
-    model.fit(_get_bag_of_word(all_data.X_train), all_data.y_train)
-    y_pred = model.predict(_get_bag_of_word(all_data.X_test))
-    print(classification_report(all_data.y_test, y_pred,target_names=ALL_CLASSES))
+    X_train = joblib.load('X_train')
+    X_test = joblib.load('X_test')
+
+    model = LogisticRegressionCV(verbose=1000, n_jobs=-1, max_iter=10000)
+    model.fit(X_train, all_data['y_train'])
+    y_pred = model.predict(X_test)
+    print(classification_report(all_data['y_test'], y_pred))
 
 
 def naive_bayes(all_data):
