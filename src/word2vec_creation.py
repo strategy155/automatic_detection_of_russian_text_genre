@@ -10,24 +10,6 @@ fn = 'word2vec_src.txt'
 STOPS = nltk.corpus.stopwords.words('russian')
 
 
-def worker(name, q):
-    '''stupidly simulates long running process'''
-    arg = joblib.load(name)
-    word_list = re.sub('[^а-яА-яёЁ]', ' ', arg.lower()).split()
-    filtered_words = [word for word in word_list  if word not in STOPS]
-    q.put(filtered_words)
-    return filtered_words
-
-
-def listener(q):
-    '''listens for messages on the q, writes to file. '''
-    while True:
-        m = q.get()
-        yield m
-
-
-
-
 class MyCorp(object):
     def __iter__(self):
         rootd = os.walk('D:\\usr\\gwm\\materials\\c_w\\full_strings')

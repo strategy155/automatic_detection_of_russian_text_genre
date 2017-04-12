@@ -81,30 +81,6 @@ def get_bag_of_word(filenames):
     return X
 
 
-class MyCorp(object):
-    def __init__(self,filenames):
-        self.filenames = filenames
-
-
-    def __iter__(self):
-        c = 0
-        for filename in self.filenames:
-            c+=1
-            print(c)
-            arg = joblib.load(filename)
-            word_seq = re.sub('[^а-яА-яёЁ]', ' ', arg.lower())
-            yield word_seq
-            # collect results from the workers through the pool result queue
-
-
-
-def get_sequence(filenames):
-    corp = MyCorp(filenames)
-    model = joblib.load("keras_tokenizer")
-    X = model.texts_to_sequences(corp)
-    return X
-
-
 def _make_array(X):
     X_cool = []
     for elem in X:
@@ -135,11 +111,3 @@ def gen_bag_of_word(X, y, batch_size = 500):
                 yield (numpy.vstack(new_X), numpy.vstack(new_y))
                 new_X = []
                 new_y = []
-
-
-if __name__ == '__main__':
-
-    # x = joblib.load('all_data')
-    # print(x['X_train'])
-    # joblib.dump(get_sequence(x['X_train']),'all_tokenized_train')
-    # joblib.dump(get_sequence(x['X_test']),'all_tokenized_test')
