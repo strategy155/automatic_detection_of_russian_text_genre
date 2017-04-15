@@ -11,11 +11,10 @@ def get_soup(filename):
     return soup
 
 
-def _check_if_key_pressed(ord_code):
+def check_if_key_pressed(ord_code):
     if kbhit():
         if ord(getch()) == ord_code:
-            sys.exit()
-    return None
+            return True
 
 
 def get_all_tags(soup, tag):
@@ -79,7 +78,7 @@ def line_generator(root):
         for filename in filenames:
             _abs_path = str(os.path.join(rootd,filename))
             lines = get_text(_abs_path)
-            _check_if_key_pressed(27)
+            check_if_key_pressed(27)
             for line in lines:
                 yield line
 

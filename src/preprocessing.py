@@ -1,113 +1,94 @@
-import random
 import re
-
+from gensim.models.keyedvectors import KeyedVectors
 import joblib
 import numpy
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-from src.definitions import MAX_NUMBER, PREDICTION_DATA, ALL_CLASSES
-
-
-def _choose_filenames(train_amount=MAX_NUMBER, test_amount=int(MAX_NUMBER / 10)):
-    _genre_to_filenames = joblib.load('test_lul')
-    _all_amount = train_amount + test_amount
-    samples_dict = PREDICTION_DATA
-    for key in _genre_to_filenames.keys():
-        _file_amount = len(_genre_to_filenames[key])
-        if _file_amount >= _all_amount:
-            _range_gen = range(_file_amount)
-            _random_indices = random.sample(_range_gen, train_amount+test_amount)
-            _filenames = _genre_to_filenames[key]
-            _fill_sample(train_amount,test_amount,key,_filenames,_random_indices,samples_dict)
-    _shuffle_samples(samples_dict['X_train'],samples_dict['y_train'])
-    _shuffle_samples(samples_dict['X_test'], samples_dict['y_test'])
-    return samples_dict
+import pymorphy2
+from src.definitions import RUSVECTORES_PATH, ALL_DATA_PATH, SEQUENCE_LENGTH, WORD2VEC_DIM, ALL_CLASSES
 
 
-def _fill_sample(train_amount, test_amount, key, filenames, random_indices, samples_dict):
-    X_train, y_train = _fill_filenames_for_genre(train_amount, key, filenames, random_indices)
-    X_test, y_test = _fill_filenames_for_genre(test_amount, key, filenames, random_indices, train_amount)
-    samples_dict['X_train'] += X_train
-    samples_dict['y_train'] += y_train
-    samples_dict['X_test'] += X_test
-    samples_dict['y_test'] += y_test
-    return None
+morph = pymorphy2.MorphAnalyzer()
 
 
-def _fill_filenames_for_genre(count, key, filenames, indices, start_number=0):
-    X = []
-    y = []
-    for i in range(start_number,start_number + count):
-        filename = filenames[indices[i]]
-        X.append(filename)
-        y.append(key)
-    return X, y
+def convert_text_to_words_list(filename):
+    _raw_string = joblib.load(filename)
+    words = re.sub('[^а-яА-яёЁ]', ' ', _raw_string.lower()).split(' ')
+    words = list(filter(None, words))
+    return words
 
 
-def norm_names(answers):
-    i=0
-    _new_dic={}
-    y_new = []
-    for elem in ALL_CLASSES:
-        _new_dic[elem] = i
-        i+=1
-    for elem in answers:
-        y_new.append(_new_dic[elem])
-    return y_new
+def create_list_of_w2v_vectors(words_list, model):
+    new_words = []
+    for word in words_list:
+        try:
+            new_words+=list(model.word_vec(_return_annotated(word)))
+        except KeyError:
+            continue
+    return new_words
 
 
-def _shuffle_samples(X,y):
-    meta = list(zip(X,y))
-    random.shuffle(meta)
-    X[:], y[:] = zip(*meta)
-    return None
+def _load_w2v_model(bin_path):
+    model = KeyedVectors.load_word2vec_format(bin_path, binary=True)
+    return model
 
 
-def _gen_docs(filenames):
-    c = 0
-    for filename in filenames:
-        print(c, len(filenames))
-        c+=1
-        big_line = joblib.load(filename)
-        yield big_line
+def pad_sequences(sequences):
+    new_array = numpy.zeros(SEQUENCE_LENGTH*WORD2VEC_DIM)
+    for idx, elem in enumerate(sequences):
+        new_array[idx] = numpy.asarray(elem)
+        if idx == SEQUENCE_LENGTH*WORD2VEC_DIM:
+            break
+    return new_array
 
 
-def get_bag_of_word(filenames):
-    try:
-        tf_idf = joblib.load("tf_idf")
-    except FileNotFoundError:
-        tf_idf = TfidfVectorizer()
-    X = tf_idf.transform(_gen_docs(filenames))
+def get_w2v_dataset(X_filenames):
+    full_length = len(X_filenames)
+
+    for idx, filename in enumerate(X_filenames, start=1):
+        _words_list = convert_text_to_words_list(filename)
+        _model = _load_w2v_model(RUSVECTORES_PATH)
+        _vectors = create_list_of_w2v_vectors(_words_list, _model)
+        _padded_sequence = pad_sequences(_vectors)
+        print(_padded_sequence.shape)
+        if idx == 1:
+            X = numpy.asarray(_padded_sequence)
+        else:
+            print(X.shape, _padded_sequence.shape)
+            X = numpy.vstack((X, _padded_sequence))
+        print(X.T.shape)
+        if idx == 2:
+            break
+        print(idx, full_length)
+
     return X
 
 
-def _make_array(X):
-    X_cool = []
-    for elem in X:
-         X_cool.append(elem.toarray())
-    X_cool = numpy.asarray(X_cool)
-    X_cool = X_cool.reshape((X_cool.shape[0],-1))
-    return X_cool
+def norm_names(y):
+    new_y = []
+    for elem in y:
+        for idx, classname in enumerate(ALL_CLASSES):
+            if classname == elem:
+                new_y.append(idx)
+                break
+    return new_y
+
+def create_w2v_marked_samples():
+    filenames_by_genres = joblib.load(ALL_DATA_PATH)
+    train_filenames = filenames_by_genres['X_train']
+    test_filenames = filenames_by_genres['X_test']
+    X_train = get_w2v_dataset(train_filenames)
+    X_test = get_w2v_dataset(test_filenames)
+    return X_train, X_test
 
 
-def gen_bag_of_word(X, y, batch_size = 500):
-    print(y.shape)
-    while True:
-        rng_state = numpy.random.get_state()
-        index = numpy.arange(numpy.shape(X)[0])
-        numpy.random.shuffle(index)
-        numpy.random.set_state(rng_state)
-        numpy.random.shuffle(y)
-        new_X = []
-        new_y = []
-        i = 0
-        for idx,elem in zip(y,X[index, :]):
-            idx = numpy.array(idx)[numpy.newaxis]
-            new_X.append(elem.toarray())
-            new_y.append(idx)
-            i += 1
-            if i == batch_size:
-                i=0
-                yield (numpy.vstack(new_X), numpy.vstack(new_y))
-                new_X = []
-                new_y = []
+
+def _return_annotated(word):
+    _tag_vars = morph.parse(word)
+    annotated = word + '_' + str(_tag_vars[0].tag.POS)
+    return annotated
+
+
+def main():
+    print('che')
+
+if __name__ == '__main__':
+    main()
