@@ -4,14 +4,16 @@ import gensim
 import joblib
 import nltk
 import pickle
+from datetime import datetime, date
 from src.utils import check_if_key_pressed
+import time
 
 
 nltk.data.path.append('D:\\usr\\gwm\\materials\\nltk_data')
 STOPS = nltk.corpus.stopwords.words('russian')
 
 
-class MyCorp(object):
+class Word2Vec_Corp(object):
     def __init__(self):
         self.flag = 0
         self.epoch = 0
@@ -55,8 +57,7 @@ class MyCorp(object):
                 pickle.dump([0, self.epoch], fin)
 
 
-if __name__ == '__main__':
-    # main()
+def main():
     corp = MyCorp()
     try:
         model = gensim.models.Word2Vec.load('w2v')
@@ -67,3 +68,10 @@ if __name__ == '__main__':
         pass
         model = gensim.models.Word2Vec(sentences=corp,size=1000,workers=8,window=10,iter=5,batch_words=100000)
     model.save('w2v')
+
+
+
+if __name__ == '__main__':
+    start = datetime.today()
+    time.sleep(10)
+    print(datetime.today()-start)
