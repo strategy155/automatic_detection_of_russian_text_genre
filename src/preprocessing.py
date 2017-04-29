@@ -5,7 +5,7 @@ import pymorphy2
 import joblib
 import os
 from src.definitions import RUSVECTORES_PATH, SMALL_DATA_PATH, SEQUENCE_LENGTH, WORD2VEC_DIM, ALL_CLASSES,\
-    ANNOTATED_CORPUS_PATH, FULL_DATA_PATH, MEDIUM_W2V_X_TEST_PATH, MEDIUM_W2V_X_TRAIN_PATH, SMALL_W2V_X_TRAIN_PATH, SMALL_W2V_X_TEST_PATH, MEDIUM_DATA_PATH, STOPS
+    ANNOTATED_CORPUS_PATH, FULL_DATA_PATH, MEDIUM_W2V_X_TEST_PATH, MEDIUM_W2V_X_TRAIN_PATH, SMALL_W2V_X_TRAIN_PATH, SMALL_W2V_X_TEST_PATH, MEDIUM_DATA_PATH, STOPS, FULL_W2V_X_TEST_PATH, FULL_W2V_X_TRAIN_PATH
 
 
 morph = pymorphy2.MorphAnalyzer()
@@ -71,8 +71,11 @@ def get_list_of_tags(model):
 
 
 def dump_w2v_dataset(X_filenames, path):
-    X = numpy.memmap(path, mode='w+', dtype='float64', shape=(len(X_filenames),SEQUENCE_LENGTH*WORD2VEC_DIM))
+    # Сохраняю дрисню 👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌
+    X = numpy.memmap(path, mode='r+', dtype='float64', shape=(len(X_filenames),SEQUENCE_LENGTH*WORD2VEC_DIM))
     for idx, filename in enumerate(X_filenames, start=0):
+        if idx > 15841:
+            continue
         _model = _load_w2v_model(RUSVECTORES_PATH)
         _new_path = return_annotated_path(filename)
         _annotated_word_list = joblib.load(_new_path)
@@ -85,16 +88,21 @@ def dump_w2v_dataset(X_filenames, path):
 
 def create_list_of_w2v_vectors(annotated_word_list, model):
     vecs = []
+    idx = 0
     tag_set = get_list_of_tags(model)
     for elem in annotated_word_list:
+        if idx > SEQUENCE_LENGTH:
+            break
         try:
             vec = model.word_vec(elem)
             vecs+= list(vec)
+            idx += 1
         except KeyError:
             for tag in tag_set:
                 try:
                     new_annotated = str(elem).split('_')[0] + '_' + tag
                     vecs += list(model.word_vec(new_annotated))
+                    idx += 1
                     break
                 except KeyError:
                     continue
@@ -149,11 +157,11 @@ def _return_annotated(word):
 
 
 def main():
-    filenames_by_genres = joblib.load(SMALL_DATA_PATH)
+    filenames_by_genres = joblib.load(FULL_DATA_PATH)
     train_filenames = filenames_by_genres['X_train']
     test_filenames = filenames_by_genres['X_test']
-    dump_w2v_dataset(train_filenames, SMALL_W2V_X_TRAIN_PATH)
-    dump_w2v_dataset(test_filenames, SMALL_W2V_X_TEST_PATH)
+    dump_w2v_dataset(train_filenames, FULL_W2V_X_TRAIN_PATH)
+    dump_w2v_dataset(test_filenames, FULL_W2V_X_TEST_PATH)
     # dump_annotated_corpus(train_filenames)
     # dump_annotated_corpus(test_filenames)
 
