@@ -54,15 +54,6 @@ def _load_w2v_model(bin_path):
     return model
 
 
-def pad_sequences(sequences):
-    new_array = numpy.zeros(SEQUENCE_LENGTH*WORD2VEC_DIM)
-    for idx, elem in enumerate(sequences):
-        if idx == SEQUENCE_LENGTH*WORD2VEC_DIM:
-            break
-        new_array[idx] = numpy.asarray(elem)
-    return new_array
-
-
 def get_list_of_tags(model):
     inf_set = set()
     for elem in model.vocab.keys():
@@ -71,42 +62,34 @@ def get_list_of_tags(model):
 
 
 def dump_w2v_dataset(X_filenames, path):
-    # Сохраняю дрисню 👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌👌
-    X = numpy.memmap(path, mode='r+', dtype='float64', shape=(len(X_filenames),SEQUENCE_LENGTH*WORD2VEC_DIM))
+    X = numpy.memmap(path, mode='w+', dtype='float64', shape=(len(X_filenames), WORD2VEC_DIM))
+    _model = _load_w2v_model(RUSVECTORES_PATH)
     for idx, filename in enumerate(X_filenames, start=0):
-        if idx > 15841:
-            continue
-        _model = _load_w2v_model(RUSVECTORES_PATH)
         _new_path = return_annotated_path(filename)
         _annotated_word_list = joblib.load(_new_path)
         _vectors = create_list_of_w2v_vectors(_annotated_word_list, _model)
-        _padded_sequence = pad_sequences(_vectors)
-        X[idx] = _padded_sequence
-        print(idx, _padded_sequence.shape, X.shape, X[idx], len(_annotated_word_list))
+        X[idx] = numpy.mean(_vectors, axis=0)
+        print(idx, X.shape, X[idx], len(_annotated_word_list))
     return None
 
 
 def create_list_of_w2v_vectors(annotated_word_list, model):
-    vecs = []
-    idx = 0
+    vecs = numpy.zeros((len(annotated_word_list), WORD2VEC_DIM), dtype=numpy.float64)
     tag_set = get_list_of_tags(model)
-    for elem in annotated_word_list:
-        if idx > SEQUENCE_LENGTH:
-            break
+    for idx, elem in enumerate(annotated_word_list):
         try:
             vec = model.word_vec(elem)
-            vecs+= list(vec)
-            idx += 1
+            vecs[idx] = numpy.asarray(vec, dtype=numpy.float64)
         except KeyError:
             for tag in tag_set:
                 try:
                     new_annotated = str(elem).split('_')[0] + '_' + tag
-                    vecs += list(model.word_vec(new_annotated))
-                    idx += 1
+                    vecs[idx] = numpy.asarray(model.word_vec(new_annotated), dtype=numpy.float64)
                     break
                 except KeyError:
                     continue
             continue
+    print(vecs.shape, vecs[~(vecs==0).all(1)].shape)
     return vecs
 
 
@@ -118,6 +101,7 @@ def norm_names(y):
                 new_y.append(idx)
                 break
     return new_y
+
 
 def create_annotated_corpus():
     filenames_by_genres = joblib.load(SMALL_DATA_PATH)
@@ -149,6 +133,7 @@ def map_ud_tags_to_pymorphy(tag):
         return mapping_dict[tag]
     except KeyError:
         return tag
+
 
 def _return_annotated(word):
     _tag_vars = morph.parse(word)
