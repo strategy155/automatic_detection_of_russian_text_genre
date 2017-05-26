@@ -5,6 +5,10 @@ from src.definitions import SMALL_DATA_PATH, SEQUENCE_LENGTH, WORD2VEC_DIM, FULL
     FULL_TFIDF_TEST_PATH, FULL_TFIDF_TRAIN_PATH
 from keras.utils import to_categorical
 import tensorflow as tf
+import numpy
+from sklearn.metrics import classification_report
+tf.logging.set_verbosity(tf.logging.INFO)
+
 
 
 def main():
@@ -18,7 +22,7 @@ def main():
 
 
 class LogisticRegression(object):
-    BATCH_SIZE = 1024
+    BATCH_SIZE = 1
 
     def __init__(self):
         self.model_parameters = None
@@ -51,10 +55,11 @@ class LogisticRegression(object):
         self.outputs = tf.matmul(inputs, weights) + bias
         self.activations = tf.nn.softmax(self.outputs)
         self.model_loss = tf.reduce_mean(-tf.reduce_sum(targets*tf.log(self.activations), axis=1))
-        self.optimizer = tf.train.AdagradDAOptimizer(learning_rate=5, global_step=self.model_parameters['global_step_tensor']).minimize(self.model_loss)
+        self.optimizer = tf.train.AdagradDAOptimizer(learning_rate=1, global_step=self.model_parameters['global_step_tensor']).minimize(self.model_loss)
 
     def train_session_start(self):
         with tf.Session() as current_session:
+            saver = tf.train.Saver()
             current_session.run(self.init)
             previous_accuracy = 0
             for epoch in range(self.epoch_count):
@@ -65,28 +70,48 @@ class LogisticRegression(object):
                     end_index = (i+1)*self.BATCH_SIZE
                     data_batch = self.train_data[start_index:end_index].toarray()
                     targets_batch = self.train_targets[start_index:end_index]
-                    print(targets_batch)
                     _, cost = current_session.run([self.optimizer, self.model_loss],
                                                feed_dict={self.model_parameters['average_vector']: data_batch,
                                                           self.model_parameters['target_class_matrix']: targets_batch})
                     average_cost += cost / total_batch
+                    print(i, cost)
                 if (epoch + 1) % 1 == 0:
                     print("Epoch:", '%04d' % (epoch + 1), "cost=", "{:.9f}".format(average_cost))
                     correct_prediction = tf.equal(tf.argmax(self.activations, 1), tf.argmax(self.model_parameters['target_class_matrix'], 1))
                     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float64))
-                    new_accuracy = accuracy.eval({self.model_parameters['average_vector']: self.test_data, self.model_parameters['target_class_matrix']: self.test_targets.eval()})
-                    print("Accuracy:", new_accuracy)
-                    if new_accuracy > previous_accuracy:
-                        previous_accuracy = new_accuracy
+                    average_acc = 0.
+                    total_batch = int(self.test_data.shape[0] / self.BATCH_SIZE)
+                    pred = []
+                    for i in range(total_batch):
+                        start_index = i * self.BATCH_SIZE
+                        end_index = (i + 1) * self.BATCH_SIZE
+                        data_batch = self.test_data[start_index:end_index].toarray()
+                        targets_batch = self.test_targets[start_index:end_index]
+                        new_accuracy = accuracy.eval({self.model_parameters['average_vector']: data_batch,
+                                                      self.model_parameters[
+                                                          'target_class_matrix']: targets_batch})
+                        pred += list(tf.argmax(self.activations, 1).eval({self.model_parameters['average_vector']: data_batch}))
+                        average_acc += new_accuracy / total_batch
+                        print(i, new_accuracy)
+                    print("Accuracy:", average_acc)
+                    print(classification_report(self.true_test_targets, pred,
+                                                target_names=ALL_CLASSES))
+                    if average_acc > previous_accuracy:
+                        previous_accuracy = average_acc
                     else:
+                        print(classification_report(self.true_test_targets, pred,
+                                                    target_names=ALL_CLASSES))
+                        saver.save(current_session, 'D:\\usr\\gwm\\pyprojects\\automatic_detection_of_russian_text_genre\\trained_models\\log_reg.hdf5')
+
                         break
 
     def train(self, train_data, train_targets, test_data, test_targets, epoch_count=100):
         self.epoch_count = epoch_count
         self.train_data = train_data
         self.train_targets = train_targets
-        self.test_data = test_data[:self.BATCH_SIZE].toarray()
-        self.test_targets = tf.one_hot(test_targets[:self.BATCH_SIZE], len(ALL_CLASSES))
+        self.test_data = test_data
+        self.test_targets = to_categorical(test_targets, len(ALL_CLASSES))
+        self.true_test_targets = test_targets
         self.tf_init(train_data.shape[1], len(ALL_CLASSES))
         self.construct_model()
         self.init = tf.global_variables_initializer()

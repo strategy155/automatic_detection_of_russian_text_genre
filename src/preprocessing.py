@@ -3,11 +3,13 @@ from gensim.models.keyedvectors import KeyedVectors
 import numpy
 import pymorphy2
 import joblib
+import matplotlib.pyplot as plt
 import os
 from src.definitions import RUSVECTORES_PATH, SMALL_DATA_PATH, SEQUENCE_LENGTH, WORD2VEC_DIM, ALL_CLASSES,\
     ANNOTATED_CORPUS_PATH, FULL_DATA_PATH, MEDIUM_W2V_X_TEST_PATH, MEDIUM_W2V_X_TRAIN_PATH, SMALL_W2V_X_TRAIN_PATH, SMALL_W2V_X_TEST_PATH, MEDIUM_DATA_PATH, STOPS, FULL_W2V_X_TEST_PATH, FULL_W2V_X_TRAIN_PATH
 
-
+from matplotlib.style import use
+use('ggplot')
 morph = pymorphy2.MorphAnalyzer()
 
 
@@ -62,35 +64,36 @@ def get_list_of_tags(model):
 
 
 def dump_w2v_dataset(X_filenames, path):
-    X = numpy.memmap(path, mode='w+', dtype='float64', shape=(len(X_filenames), WORD2VEC_DIM))
+    X = numpy.memmap(path, mode='w+', dtype=numpy.float32, shape=(len(X_filenames), WORD2VEC_DIM))
     _model = _load_w2v_model(RUSVECTORES_PATH)
     for idx, filename in enumerate(X_filenames, start=0):
         _new_path = return_annotated_path(filename)
         _annotated_word_list = joblib.load(_new_path)
         _vectors = create_list_of_w2v_vectors(_annotated_word_list, _model)
-        X[idx] = numpy.mean(_vectors, axis=0)
-        print(idx, X.shape, X[idx], len(_annotated_word_list))
+        X[idx] = numpy.nanmean(_vectors, axis=0)
+        print(X[idx])
+        print(idx, X.shape, X[idx].shape, len(_annotated_word_list))
     return None
 
 
 def create_list_of_w2v_vectors(annotated_word_list, model):
-    vecs = numpy.zeros((len(annotated_word_list), WORD2VEC_DIM), dtype=numpy.float64)
+    vecs = numpy.zeros((len(annotated_word_list), WORD2VEC_DIM), dtype=numpy.float32)
     tag_set = get_list_of_tags(model)
     for idx, elem in enumerate(annotated_word_list):
         try:
             vec = model.word_vec(elem)
-            vecs[idx] = numpy.asarray(vec, dtype=numpy.float64)
+            vecs[idx] = numpy.asarray(vec)
         except KeyError:
             for tag in tag_set:
                 try:
                     new_annotated = str(elem).split('_')[0] + '_' + tag
-                    vecs[idx] = numpy.asarray(model.word_vec(new_annotated), dtype=numpy.float64)
+                    vecs[idx] = numpy.asarray(model.word_vec(new_annotated))
                     break
                 except KeyError:
                     continue
             continue
     print(vecs.shape, vecs[~(vecs==0).all(1)].shape)
-    return vecs
+    return vecs[~(vecs==0).all(1)]
 
 
 def norm_names(y):
@@ -142,11 +145,28 @@ def _return_annotated(word):
 
 
 def main():
-    filenames_by_genres = joblib.load(FULL_DATA_PATH)
-    train_filenames = filenames_by_genres['X_train']
-    test_filenames = filenames_by_genres['X_test']
-    dump_w2v_dataset(train_filenames, FULL_W2V_X_TRAIN_PATH)
-    dump_w2v_dataset(test_filenames, FULL_W2V_X_TEST_PATH)
+    # filenames_by_genres = joblib.load(FULL_DATA_PATH)
+    filenames_by_genres = joblib.load('D:\\usr\\gwm\\pyprojects\\automatic_detection_of_russian_text_genre\\genre_lists\\final_genre_to_filenames_dictionary.pkl')
+    x = []
+    y = []
+    filenames_by_genres_teet = sorted(filenames_by_genres, key=lambda x: len(filenames_by_genres[x]), reverse=True)
+    for key in filenames_by_genres_teet:
+        print(key)
+        x.append(key)
+        y.append(len(filenames_by_genres[key]))
+
+    fig = plt.figure()
+    fig.add_subplot(111)
+    plt.bar(range(len(x)), y)
+    plt.ylabel('Количество текстов')
+    plt.xlabel('Жанр')
+    plt.xticks(range(len(x)), x)
+    fig.autofmt_xdate()
+    plt.savefig('distrib_1')
+    # train_filenames = filenames_by_genres['X_train']
+    # test_filenames = filenames_by_genres['X_test']
+    # dump_w2v_dataset(train_filenames, FULL_W2V_X_TRAIN_PATH)
+    # dump_w2v_dataset(test_filenames, FULL_W2V_X_TEST_PATH)
     # dump_annotated_corpus(train_filenames)
     # dump_annotated_corpus(test_filenames)
 
